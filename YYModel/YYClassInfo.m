@@ -90,64 +90,6 @@ YYEncodingType YYEncodingGetType(const char *typeEncoding) {
     }
 }
 
-@implementation YYClassIvarInfo
-
-- (instancetype)initWithIvar:(Ivar)ivar {
-    if (!ivar) return nil;
-    self = [super init];
-    _ivar = ivar;
-    const char *name = ivar_getName(ivar);
-    if (name) {
-        _name = [NSString stringWithUTF8String:name];
-    }
-    _offset = ivar_getOffset(ivar);
-    const char *typeEncoding = ivar_getTypeEncoding(ivar);
-    if (typeEncoding) {
-        _typeEncoding = [NSString stringWithUTF8String:typeEncoding];
-        _type = YYEncodingGetType(typeEncoding);
-    }
-    return self;
-}
-
-@end
-
-@implementation YYClassMethodInfo
-
-- (instancetype)initWithMethod:(Method)method {
-    if (!method) return nil;
-    self = [super init];
-    _method = method;
-    _sel = method_getName(method);
-    _imp = method_getImplementation(method);
-    const char *name = sel_getName(_sel);
-    if (name) {
-        _name = [NSString stringWithUTF8String:name];
-    }
-    const char *typeEncoding = method_getTypeEncoding(method);
-    if (typeEncoding) {
-        _typeEncoding = [NSString stringWithUTF8String:typeEncoding];
-    }
-    char *returnType = method_copyReturnType(method);
-    if (returnType) {
-        _returnTypeEncoding = [NSString stringWithUTF8String:returnType];
-        free(returnType);
-    }
-    unsigned int argumentCount = method_getNumberOfArguments(method);
-    if (argumentCount > 0) {
-        NSMutableArray *argumentTypes = [NSMutableArray new];
-        for (unsigned int i = 0; i < argumentCount; i++) {
-            char *argumentType = method_copyArgumentType(method, i);
-            NSString *type = argumentType ? [NSString stringWithUTF8String:argumentType] : nil;
-            [argumentTypes addObject:type ? type : @""];
-            if (argumentType) free(argumentType);
-        }
-        _argumentTypeEncodings = argumentTypes;
-    }
-    return self;
-}
-
-@end
-
 @implementation YYClassPropertyInfo
 
 - (instancetype)initWithProperty:(objc_property_t)property {
@@ -271,22 +213,9 @@ YYEncodingType YYEncodingGetType(const char *typeEncoding) {
 }
 
 - (void)_update {
-    _ivarInfos = nil;
-    _methodInfos = nil;
     _propertyInfos = nil;
     
     Class cls = self.cls;
-    unsigned int methodCount = 0;
-    Method *methods = class_copyMethodList(cls, &methodCount);
-    if (methods) {
-        NSMutableDictionary *methodInfos = [NSMutableDictionary new];
-        _methodInfos = methodInfos;
-        for (unsigned int i = 0; i < methodCount; i++) {
-            YYClassMethodInfo *info = [[YYClassMethodInfo alloc] initWithMethod:methods[i]];
-            if (info.name) methodInfos[info.name] = info;
-        }
-        free(methods);
-    }
     unsigned int propertyCount = 0;
     objc_property_t *properties = class_copyPropertyList(cls, &propertyCount);
     if (properties) {
@@ -298,21 +227,7 @@ YYEncodingType YYEncodingGetType(const char *typeEncoding) {
         }
         free(properties);
     }
-    
-    unsigned int ivarCount = 0;
-    Ivar *ivars = class_copyIvarList(cls, &ivarCount);
-    if (ivars) {
-        NSMutableDictionary *ivarInfos = [NSMutableDictionary new];
-        _ivarInfos = ivarInfos;
-        for (unsigned int i = 0; i < ivarCount; i++) {
-            YYClassIvarInfo *info = [[YYClassIvarInfo alloc] initWithIvar:ivars[i]];
-            if (info.name) ivarInfos[info.name] = info;
-        }
-        free(ivars);
-    }
-    
-    if (!_ivarInfos) _ivarInfos = @{};
-    if (!_methodInfos) _methodInfos = @{};
+
     if (!_propertyInfos) _propertyInfos = @{};
     
     _needUpdate = NO;
